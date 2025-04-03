@@ -1,0 +1,280 @@
+  # "arsehole/s"
+  "\\b(dumb|stupid|lazy|worthless|useless|brain|dead|jack)*[a@4äáå]r[s5$§z][e3€ëéê][h]?[o0øöóõ]*[l1£][e3€ëéê]*[s5$§z]*\\b",
+
+  # "ass/asshole/s"
+  "\\b(dumb|stupid|lazy|worthless|useless|brain|dead|jack)*[a@4äáå][s5$§z]{2,}[h]?[o0øöóõ]*[l1|£][e3€ëéê]*[s5$§z]*\\b",
+
+  # "bitch"
+  "\\b[8ß|3][i1!|ïíì]+[a@4äáå]*[t7+†][c¢©(][h](es|ez|ing|ed)*\\b",
+
+  # "bastard"
+  "\\b[8ß|3][a@4äáå][s5$§z][t7+†][a@4äáå]r[d][o]*(s|z)*\\b",
+
+  # "beaner"
+  "\\b[8ß|3][e3€ëéê][a@4äáå]n[e3€ëéê]r(s|z)*\\b",
+
+  # "bellend"
+  "\\b[8ß|3][e3€ëéê]ll[e3€ëéê]nd(s|z)*\\b",
+
+  # "bimbo"
+  "\\b[8ß|3][1!|ïíì]mb[o0øöóõ](s|z)*\\b",
+
+  # "bloody"
+  "\\bbl[o0øöóõ]{2,}d[iy¥](ed)*\\b",
+
+  # "bollocks"
+  "\\b[8ß|3][o0øöóõ]ll[o0øöóõiïíì][xc¢©(k|<{(]+[s5$§z]?\\b",
+
+  # "boner"
+  "\\bboner[s]*\\b",
+
+  # "bonk"
+  "\\b[8ß|3][o0øöóõ]n[k|<{(](in|ing)*\\b",
+
+  # "boobs"
+  "\\b[8ß|3][o0øöóõ]{2,}[b8ß|3][ie]*[s5$§z]?\\b",
+
+  # "bugger"
+  "\\b[8ß|3][u|µüúû]gg[e3€ëéê]r(ing|s|z)*\\b",
+
+  # "bullshit"
+  "\\b[b8ß|3][u|µüúû]ll[s5$§z]h[1!|ïíì]+[t7+†]*\\b",
+
+  # "butt"
+  "\\b[b8ß3][uµüúû][t7+†][t7+†][sz]*(face|head|wit|whipe|hole|h)*[hl]*[sz]*\\b",
+
+  # "damn"
+  "\\b(god)*damn\\b",
+
+  # "darkie"
+  "\\bdarki(es)*\\b",
+
+  # "dike"
+  "\\b(bull)*d[iy]*ke(s|z)*\\b",
+
+  # "dildo"
+  "\\bdildo(s|z)*\\b",
+
+  # "dork"
+  "\\bdork(s|z)*\\b",
+
+  # "eff"
+  "\\beff(ing|in|ed|d)*\\b",
+
+
+  # "fanny"
+  "\\bfann(y|ies)+\\b",
+
+  # "fart"
+  "\\bfart(s|z|ing|in|ed)*\\b",
+
+  # "frig"
+  "\\bfrig(g|gin|ging|ged|gs)*\\b",
+
+  # Detects "fuck" variations
+  "\\b(cluster|head|mother|motha|mutha|mada|cock|mom|mum|daddy|father|sister|brother)*[f=ƒ][uµüúû|@a4äáå|e3€ëéê|o0øöóõ|*]*[c¢©(]*[k|<{(][e3€ëéê]*[r]*(head|face|wit|ing|er|a|ed|ers|az)*\\b",
+  "\\b[f=ƒ][c¢©(*k<{(uµüúû*]+(ing|er|a|ed|ers|az)*\\b",
+
+  # Detects "fuck" variations as 'f'
+  "\\bf\\b",
+
+  # "gash"
+  "\\bgash\\b",
+
+  # "gook"
+  "\\bg[o]*ok(s|z)*\\b",
+
+  # "idiot"
+  "\\bidiot(s|z)*\\b",
+
+  # "jackass"
+  "\\bjacka[s5$§z][s5$§z]\\b",
+
+  # "jap"
+  "\\bjap[zs]*\\b",
+
+  # "jerk"
+  "\\bjerk(s|z|in|ing|ed)*\\b",
+
+  # "jiss"
+  "\\bji[s5$§z][s5$§z]+\\b",
+
+  # "jug"
+  "\\bjug[g]*[s5$§z]*\\b",
+
+  # "shit"
+  "\\b[(dip)]*[s5$§z]h[1!|ïíì]+[t7+†]*(ing|e|in|er|a|ed|ers|az|s|z)*\\b",
+
+  # Online variants
+
+  # Knock the f*** out
+  "\\bktfo\\b",
+
+  # Shut the f*** up
+  "\\bstfu\\b",
+
+  # Get the f*** out
+  "\\bgtfo\\b",
+
+  # Not giving a f***
+  "\\bngaf\\b",
+
+  # Don't give a f***
+  "\\bdgaf\\b",
+
+  # For f***'s sake
+  "\\bffs\\b",
+
+  # F*** my life
+  "\\bfml\\b",
+
+  # Oh my f***ing god
+  "\\bomfg\\b",
+
+  # As f***
+  "\\baf\\b",
+
+  # The f***
+  "\\btf\\b",
+
+  # What the f***
+  "\\bwtf\\b",
+
+  # Laughing my ass off
+  "\\blmao\\b",
+
+  # Laughing my f***ing ass off
+  "\\blmfao\\b",
+
+  # Rolling on floor laughing
+  "\\brofl\\b",
+
+  # "chink"
+  "\\bch[i]*nk[zs]*\\b",
+
+  # "coon"
+  "\\bcoon[zs]*\\b",
+
+  # "crap"
+  "\\b[bull]*crap(ping|ped|s|z|pin)*\\b",
+
+  # "cum"
+  "\\bcum(ming)*\\b",
+
+  # "cock"
+  "\\bc[o0øöóõ][c¢©]+[(k|<{(|x]+(suck|sak|suk)*[k]*(er|ers|a|az|as)*\\b",
+
+  # "cunt"
+  "\\b[kc¢©(][u|µüúû]*nt[zs]*\\b",
+
+  # "dick"
+  "\\b[d][1!|ïíì][c¢©(][xk|<{(][(head)]*[zs]*\\b",
+
+  # derogatory term for homosexual
+  "\\b[f|=ƒ][a@4äáåe]g[g]*[ioa]*[t]*[zs]*\\b",
+
+  # "hoe"
+  "\\bh[o0øöóõ][e3€ëéê][zs]*\\b",
+
+  # "hore"
+  "\\bh[o0øöóõ]r[e3€ëéê]*[zs]*\\b",
+
+  # "kike"
+  "\\b[k|<{(][i1!ïíìy][k|<{(][e3€ëéê][zs]*\\b",
+
+  # racial slur
+  "\\bn[i1!ïíì]gg[e3€ëéê|@a4äáå][r]*[zs]*\\b",
+
+  # "knob"
+  "\\bknob[(head)]*[zs]*\\b",
+
+  # "lesbo"
+  "\\blesbo[sz]*\\b",
+
+  # "minger"
+  "\\bming[(a|er)]+(s|z)*\\b",
+
+  # "moron"
+  "\\bm[o|u]ron(ic|s|z)*\\b",
+
+  # "muff"
+  "\\bmuff\\b",
+
+  # "nonce"
+  "\\bnonce\\b",
+
+  # "nympho"
+  "\\bnympho\\w*\\b",
+
+  # "pecker"
+  "\\bp[e3€ëéê]ck[ae]?[rs]*\\b",
+
+  # "pedo"
+  "\\bp[e3€ëéê]do[philf]*[e]*[zs]*\\b",
+
+  # "pikey
+  "\\bpik(i|is|ey|ies|eys|eyz|iez|iz)+\\b",
+
+  # "pimp"
+  "\\bpimp(s|ing|in|z|ed)*\\b",
+
+  # "piss"
+  "\\bp[i1!|ïíì][s5$§z][s5$§]+(in|ing|er|a|ers|erz)*\\b",
+
+  # "poofter"
+  "\\bpooft(er|ers|as|az)+\\b",
+
+  # "prick"
+  "\\bprick[zs]*\\b",
+
+  # "puke"
+  "\\bpuk[e]*(s|z|ing|ed)*\\b",
+
+  # "pussy"
+  "\\bp[u|µüúû][s5$§z][s5$§z][@a4äáå]*[y¥][zs]*\\b",
+
+  # "queef"
+  "\\bqu[e]+[a]*f(s|z|ing|ed)*\\b",
+
+  # "shag"
+  "\\bshag(ging|gin|ged)*\\b",
+
+  # "skank"
+  "\\bskank[yzs]*\\b",
+
+  # "slag"
+  "\\bslag[zs]*\\b",
+
+  # "slut"
+  "\\b[s5$§z]l[uµüúû][t7+†](i|y)*[zs]*\\b",
+
+  # "sod"
+  "\\bsod[d]*[sz]*(ing)*\\b",
+
+  # "spastic"
+  "\\bspast(ic|ics|icz)*\\b",
+
+  # "retard"
+  "\\bretard[zs]*\\b",
+
+  # "tits"
+  "\\btit[t]*(i|ies|ay|ays|ayz)*\\b",
+
+  # "tosser"
+  "\\btosser[sz]*\\b",
+
+  # "tranny"
+  "\\btr[a@4äáå]nn(y|ies|iez)+\\b",
+
+  # "turd"
+  "\\bturd[sz]*\\b",
+
+  # "twat"
+  "\\b[t7+†]w[a@4äáå][t7+†][zs]*\\b",
+
+  # "wank"
+  "\\bw[a@4äáå]n[k|<{(](z|er|ers|ing|az|a|ed)*\\b",
+
+  # "whore"
+  "\\b(cam|man|m)*wh[o0øöóõ]?r[e3€ëéê]*(d|s|z|ing)*\\b"
+
