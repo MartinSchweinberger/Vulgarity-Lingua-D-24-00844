@@ -29,7 +29,7 @@ This repository includes the following key files:
   PDF rendering of Part 3.
 
 - **`List of Regular Expressions - Vulgarity Detection`**  
-  Contains the regular expressions used to identify potentially vulgar expressions. These matches were semi-automatically cleaned and manually validated.
+  Contains the regular expressions used to identify potentially vulgar expressions. The resulting matches were semi-automatically cleaned and manually validated.
 
 - **`glowbe_table.rda`**  
   Metadata for the GloWbE files used (file names, regions, token counts). Required to reproduce the analysis in Part 3.
