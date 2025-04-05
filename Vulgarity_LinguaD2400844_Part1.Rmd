@@ -1,0 +1,996 @@
+---
+title: "Vulgar language on the web across World Englishes - Part 1: data preparation"
+author: "Anonymous"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  bookdown::pdf_document2:
+    latex_engine: lualatex
+  tufte::tufte_handout:
+    latex_engine: xelatex
+bibliography: bibliography.bib
+link-citations: yes
+---
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+# Intro
+
+This document shows an analysis that was performed with the aim of finding differences in swearing across geographically distinct varieties of English around the world based on the GloWbe corpus. 
+
+install packages
+
+```{r install, eval = F, message=F, warning=F}
+# install packages
+install.packages("tidyverse")
+install.packages("quanteda")
+install.packages("here")
+install.packages("udpipe")
+install.packages("future")
+install.packages("furrr")
+install.packages("stringi")
+install.packages("parallel")
+install.packages("usethis")
+install.packages("data.table")
+install.packages("tokenizers")
+```
+
+load packages and set options
+
+```{r act, message=FALSE, warning=FALSE}
+# load packages
+library(data.table)
+library(tidyverse)
+library(quanteda)
+library(here)
+library(stringi)
+library(parallel)
+library(usethis)
+library(data.table)
+library(quanteda)
+library(future)
+library(furrr)
+library(tokenizers)
+```
+
+# Load data
+
+define paths
+
+```{r eval = F}
+# list files
+fls <- list.files("D:/corpora/GloWbE", 
+                  pattern = "txt", 
+                  full.names = T, 
+                  recursive = T, 
+                  include.dirs = T)
+# inspect
+head(fls)
+```
+
+function for preparing data
+
+```{r eval = F}
+preptxt <- function(fls, var) {
+  fln  <- fls[stringr::str_detect(fls, var)]
+  # WARNING! FOR TESTING PURPOSES
+  #fln <- fln[1:2]
+  txt <- sapply(fln, function(x){
+    x <- scan(x, what = "char", quote = "", skipNul = T) %>%
+      paste0(collapse = " ")  %>%
+      stringr::str_replace_all("([#]{2,3}\\d+)", "~~~\\1") %>%
+      stringr::str_split("~~~") %>%
+      unlist() 
+    }) %>%
+    unlist()
+  crp  <- names(txt)  %>% stringr::str_remove_all(".*GloWbE/") %>% stringr::str_remove_all("/Texts.*")
+  sfl  <- names(txt)  %>% stringr::str_remove_all(".*/")
+  fl  <- txt  %>% stringr::str_remove_all(" .*") %>% stringr::str_remove_all(".txt.*")
+  df <- data.frame(crp, fl, sfl, txt) %>%
+    dplyr::filter(txt != "")
+  # WRANING FOR TESTING PURPOSES!
+  base::saveRDS(df, file = here::here("test", paste0(var, "df.rda", collapse = "", sep = "")))
+  #base::saveRDS(df, file = here::here("data", paste0(var, "dftest.rda", collapse = "", sep = "")))
+}
+```
+
+
+```{r eval = F}
+#fls   <- fls[1:3]
+#preptxt(fls, var = "Australia") # Australia
+audf  <- base::readRDS(file = here::here("test", "Australiadftest.rda"))
+# inspect
+head(audf); nrow(audf)
+```
+
+
+# Processing
+
+```{r eval = F}
+# processing
+preptxt(fls, var = "Australia") # Australia
+preptxt(fls, var = "Bangladesh") # Bangladesh
+preptxt(fls, var = "Canada") # Canada
+preptxt(fls, var = "GB-Blog") # GB-Blog
+preptxt(fls, var = "GB-General") # GB-General
+preptxt(fls, var = "Ghana") # Ghana
+preptxt(fls, var = "Hong Kong") # Hong Kong
+preptxt(fls, var = "India") # India
+preptxt(fls, var = "Ireland") # Ireland
+preptxt(fls, var = "Jamaica") # Jamaica
+preptxt(fls, var = "Kenya") # Kenya
+preptxt(fls, var = "Malaysia") # Malaysia
+preptxt(fls, var = "New Zealand") # New Zealand
+preptxt(fls, var = "Nigeria") # Nigeria
+preptxt(fls, var = "Pakistan") # Pakistan
+preptxt(fls, var = "Philippines") # Philippines
+preptxt(fls, var = "Singapore") # Singapore
+preptxt(fls, var = "South Africa") # South Africa
+preptxt(fls, var = "Sri Lanka") # Sri Lanka
+preptxt(fls, var = "Tanzania") # Tanzania
+preptxt(fls, var = "US-Blog") # US-Blog
+preptxt(fls, var = "US-General") # US-General
+```
+
+check
+
+```{r eval = T}
+audf  <- base::readRDS(file = here::here("test", "Australiadf.rda"))
+# inspect
+head(audf); nrow(audf)
+```
+
+Clean text
+
+write function to clean text
+
+```{r eval = F}
+cleantxt <- function(dfs){
+  sapply(dfs, function(x) {
+  nmfl <- stringr::str_remove_all(x, ".*/") %>% stringr::str_remove_all("df.rda")
+  base::readRDS(file = x)  %>%
+    # differentiate between EFF (institution) and eff (fuck)
+  dplyr::mutate(txt = stringr::str_replace_all(txt, " EFF", " EFFentity")) %>%  
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt, remove_separators = F))  %>%
+  base::saveRDS(df, file = here::here("data", paste0(nmfl, "dfc.rda", collapse = "", sep = "")))
+}) }
+```
+
+apply function
+
+```{r eval = F}
+dfs <- list.files(here::here("data"), 
+                  pattern = "df.rda", 
+                  full.names = T, 
+                  recursive = T, 
+                  include.dirs = T)
+# inspect
+head(dfs)
+```
+
+
+```{r eval = F}
+dfs <- dfs[1]
+cleantxt(dfs)
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Australiadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Australiadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Bangladeshdf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Bangladeshdfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Canadadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Canadadfc.rda"))
+```
+
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "GB-Blogdf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "GB-Blogdfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "GB-Generaldf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "GB-Generaldfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Ghanadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Ghanadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Hong Kongdf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Hong Kongdfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Indiadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Indiadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Irelanddf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Irelanddfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Jamaicadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Jamaicadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Kenyadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Kenyadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Malaysiadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Malaysiadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "New Zealanddf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "New Zealanddfc.rda"))
+```
+
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Nigeriadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Nigeriadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Pakistandf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Pakistandfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Philippinesdf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Philippinesdfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Singaporedf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Singaporedfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "South Africadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "South Africadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Sri Lankadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Sri Lankadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "Tanzaniadf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "Tanzaniadfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "US-Blogdf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "US-Blogdfc.rda"))
+```
+
+```{r eval = F}
+df <- base::readRDS(file = here::here("test", "US-Generaldf.rda"))  %>%
+  dplyr::mutate(ctxt = tolower(txt)) %>%
+  dplyr::mutate(ctxt = iconv(ctxt, to = "ASCII"),
+                ctxt = stringr::str_remove(ctxt, ".*? "),
+                ctxt = stringr::str_replace_all(ctxt, "<.*?>", " "),
+                ctxt = stringr::str_replace_all(ctxt, "[:punct:]", " "),
+                ctxt = stringr::str_squish(ctxt)) 
+# save
+base::saveRDS(df, file = here::here("test", "US-Generaldfc.rda"))
+```
+
+
+# Regex
+
+define regex lists
+
+The regex list represents is based on:
+
+List of Bad Words, February 2025.
+http://www.noswearing.com/dictionary/.
+
+BannedWordList.com - a resource for web
+administrators, March 2013.
+http://www.bannedwordlist.com/.
+
+McEnery, Anthony. 2006. Swearing in English: Bad Language, Purity and Power from 1586 to the Present. New York: Routledge. 
+
+Thelwall, Mike. 2008. “Fk Yea I Swear: Cursing and Gender in MySpace.” Corpora 3 (1): 83–107. doi:10.3366/E1749503208000087. 
+
+Coats, S. (2021). ‘Bad language’ in the Nordics: Profanity and gender in a social media corpus. Acta Linguistica Hafniensia, 53(1), 22–57. https://doi.org/10.1080/03740463.2021.1871218
+
+Love, R. (2021). Swearing in informal spoken English: 1990s–2010s. Text & Talk, 41(5-6), 739-762.
+
+After reviewing the items deemed vulgar in the above publications, we decided which to include as we did not consider all elements in the publications as vulgar. The items we thus deemed as vulgar after reviewing are listed below. 
+
+arse, arsehole, ass, asshole, bastard, beaner, bellend, bimbo, bitch, bloody,
+bollock, boner, bonk, boob, bugger, bullshit, butt, butthead, butthole, chink, 
+cock, coon, crap, cum, cunt, damn, darkie, dick, dike, dildo, dipshit, dork, 
+eff, fag, fanny, fart, feck, frig, fuck, gash, gook, hell, hussy, idiot, 
+jackass, jap, jerk, jiss, jug, kike, knocker, lesbo, minger, moron, 
+motherfucker, muff, nonce, nympho, pecker, pedo, pikey, pimp, piss,  
+poofter,  prick, puke, pussy, queef, retard,  shag, shit, shite, skank, 
+slag, slut, sod, spastic, tit, tosser, tranny, turd, twat, wank, 
+whore, online (such as wtf, lmao, etc)
+
+The regular expression list below is designed to capture these and variants of these elements.
+
+Vector of regular expressions for detecting vulgar language and obfuscations
+
+```{r eval = T}
+patterns <- c(
+  # "arsehole/s"
+  "\\b(dumb|stupid|lazy|worthless|useless|brain|dead|jack)*[a@4äáå]r[s5$§z][e3€ëéê][h]?[o0øöóõ]*[l1£][e3€ëéê]*[s5$§z]*\\b",
+
+  # "ass/asshole/s"
+  "\\b(dumb|stupid|lazy|worthless|useless|brain|dead|jack)*[a@4äáå][s5$§z]{2,}[h]?[o0øöóõ]*[l1|£][e3€ëéê]*[s5$§z]*\\b",
+
+  # "bitch"
+  "\\b[8ß|3][i1!|ïíì]+[a@4äáå]*[t7+†][c¢©(][h](es|ez|ing|ed)*\\b",
+
+  # "bastard"
+  "\\b[8ß|3][a@4äáå][s5$§z][t7+†][a@4äáå]r[d][o]*(s|z)*\\b",
+
+  # "beaner"
+  "\\b[8ß|3][e3€ëéê][a@4äáå]n[e3€ëéê]r(s|z)*\\b",
+
+  # "bellend"
+  "\\b[8ß|3][e3€ëéê]ll[e3€ëéê]nd(s|z)*\\b",
+
+  # "bimbo"
+  "\\b[8ß|3][1!|ïíì]mb[o0øöóõ](s|z)*\\b",
+
+  # "bloody"
+  "\\bbl[o0øöóõ]{2,}d[iy¥](ed)*\\b",
+
+  # "bollocks"
+  "\\b[8ß|3][o0øöóõ]ll[o0øöóõiïíì][xc¢©(k|<{(]+[s5$§z]?\\b",
+
+  # "boner"
+  "\\bboner[s]*\\b",
+
+  # "bonk"
+  "\\b[8ß|3][o0øöóõ]n[k|<{(](in|ing)*\\b",
+
+  # "boobs"
+  "\\b[8ß|3][o0øöóõ]{2,}[b8ß|3][ie]*[s5$§z]?\\b",
+
+  # "bugger"
+  "\\b[8ß|3][u|µüúû]gg[e3€ëéê]r(ing|s|z)*\\b",
+
+  # "bullshit"
+  "\\b[b8ß|3][u|µüúû]ll[s5$§z]h[1!|ïíì]+[t7+†]*\\b",
+
+  # "butt"
+  "\\b[b8ß3][uµüúû][t7+†][t7+†][sz]*(face|head|wit|whipe|hole|h)*[hl]*[sz]*\\b",
+
+  # "damn"
+  "\\b(god)*damn\\b",
+
+  # "darkie"
+  "\\bdarki(es)*\\b",
+
+  # "dike"
+  "\\b(bull)*d[iy]*ke(s|z)*\\b",
+
+  # "dildo"
+  "\\bdildo(s|z)*\\b",
+
+  # "dork"
+  "\\bdork(s|z)*\\b",
+
+  # "eff"
+  "\\beff(ing|in|ed|d)*\\b",
+
+
+  # "fanny"
+  "\\bfann(y|ies)+\\b",
+
+  # "fart"
+  "\\bfart(s|z|ing|in|ed)*\\b",
+
+  # "frig"
+  "\\bfrig(g|gin|ging|ged|gs)*\\b",
+
+  # Detects "fuck" variations
+  "\\b(cluster|head|mother|motha|mutha|mada|cock|mom|mum|daddy|father|sister|brother)*[f=ƒ][uµüúû|@a4äáå|e3€ëéê|o0øöóõ|*]*[c¢©(]*[k|<{(][e3€ëéê]*[r]*(head|face|wit|ing|er|a|ed|ers|az)*\\b",
+  "\\b[f=ƒ][c¢©(*k<{(uµüúû*]+(ing|er|a|ed|ers|az)*\\b",
+
+  # Detects "fuck" variations as 'f'
+  "\\bf\\b",
+
+  # "gash"
+  "\\bgash\\b",
+
+  # "gook"
+  "\\bg[o]*ok(s|z)*\\b",
+
+  # "idiot"
+  "\\bidiot(s|z)*\\b",
+
+  # "jackass"
+  "\\bjacka[s5$§z][s5$§z]\\b",
+
+  # "jap"
+  "\\bjap[zs]*\\b",
+
+  # "jerk"
+  "\\bjerk(s|z|in|ing|ed)*\\b",
+
+  # "jiss"
+  "\\bji[s5$§z][s5$§z]+\\b",
+
+  # "jug"
+  "\\bjug[g]*[s5$§z]*\\b",
+
+  # "shit"
+  "\\b[(dip)]*[s5$§z]h[1!|ïíì]+[t7+†]*(ing|e|in|er|a|ed|ers|az|s|z)*\\b",
+
+  # Online variants
+
+  # Knock the f*** out
+  "\\bktfo\\b",
+
+  # Shut the f*** up
+  "\\bstfu\\b",
+
+  # Get the f*** out
+  "\\bgtfo\\b",
+
+  # Not giving a f***
+  "\\bngaf\\b",
+
+  # Don't give a f***
+  "\\bdgaf\\b",
+
+  # For f***'s sake
+  "\\bffs\\b",
+
+  # F*** my life
+  "\\bfml\\b",
+
+  # Oh my f***ing god
+  "\\bomfg\\b",
+
+  # As f***
+  "\\baf\\b",
+
+  # The f***
+  "\\btf\\b",
+
+  # What the f***
+  "\\bwtf\\b",
+
+  # Laughing my ass off
+  "\\blmao\\b",
+
+  # Laughing my f***ing ass off
+  "\\blmfao\\b",
+
+  # Rolling on floor laughing
+  "\\brofl\\b",
+
+  # "chink"
+  "\\bch[i]*nk[zs]*\\b",
+
+  # "coon"
+  "\\bcoon[zs]*\\b",
+
+  # "crap"
+  "\\b[bull]*crap(ping|ped|s|z|pin)*\\b",
+
+  # "cum"
+  "\\bcum(ming)*\\b",
+
+  # "cock"
+  "\\bc[o0øöóõ][c¢©]+[(k|<{(|x]+(suck|sak|suk)*[k]*(er|ers|a|az|as)*\\b",
+
+  # "cunt"
+  "\\b[kc¢©(][u|µüúû]*nt[zs]*\\b",
+
+  # "dick"
+  "\\b[d][1!|ïíì][c¢©(][xk|<{(][(head)]*[zs]*\\b",
+
+  # derogatory term for homosexual
+  "\\b[f|=ƒ][a@4äáåe]g[g]*[ioa]*[t]*[zs]*\\b",
+
+  # "hoe"
+  "\\bh[o0øöóõ][e3€ëéê][zs]*\\b",
+
+  # "hore"
+  "\\bh[o0øöóõ]r[e3€ëéê]*[zs]*\\b",
+
+  # "kike"
+  "\\b[k|<{(][i1!ïíìy][k|<{(][e3€ëéê][zs]*\\b",
+
+  # racial slur
+  "\\bn[i1!ïíì]gg[e3€ëéê|@a4äáå][r]*[zs]*\\b",
+
+  # "knob"
+  "\\bknob[(head)]*[zs]*\\b",
+
+  # "lesbo"
+  "\\blesbo[sz]*\\b",
+
+  # "minger"
+  "\\bming[(a|er)]+(s|z)*\\b",
+
+  # "moron"
+  "\\bm[o|u]ron(ic|s|z)*\\b",
+
+  # "muff"
+  "\\bmuff\\b",
+
+  # "nonce"
+  "\\bnonce\\b",
+
+  # "nympho"
+  "\\bnympho\\w*\\b",
+
+  # "pecker"
+  "\\bp[e3€ëéê]ck[ae]?[rs]*\\b",
+
+  # "pedo"
+  "\\bp[e3€ëéê]do[philf]*[e]*[zs]*\\b",
+
+  # "pikey
+  "\\bpik(i|is|ey|ies|eys|eyz|iez|iz)+\\b",
+
+  # "pimp"
+  "\\bpimp(s|ing|in|z|ed)*\\b",
+
+  # "piss"
+  "\\bp[i1!|ïíì][s5$§z][s5$§]+(in|ing|er|a|ers|erz)*\\b",
+
+  # "poofter"
+  "\\bpooft(er|ers|as|az)+\\b",
+
+  # "prick"
+  "\\bprick[zs]*\\b",
+
+  # "puke"
+  "\\bpuk[e]*(s|z|ing|ed)*\\b",
+
+  # "pussy"
+  "\\bp[u|µüúû][s5$§z][s5$§z][@a4äáå]*[y¥][zs]*\\b",
+
+  # "queef"
+  "\\bqu[e]+[a]*f(s|z|ing|ed)*\\b",
+
+  # "shag"
+  "\\bshag(ging|gin|ged)*\\b",
+
+  # "skank"
+  "\\bskank[yzs]*\\b",
+
+  # "slag"
+  "\\bslag[zs]*\\b",
+
+  # "slut"
+  "\\b[s5$§z]l[uµüúû][t7+†](i|y)*[zs]*\\b",
+
+  # "sod"
+  "\\bsod[d]*[sz]*(ing)*\\b",
+
+  # "spastic"
+  "\\bspast(ic|ics|icz)*\\b",
+
+  # "retard"
+  "\\bretard[zs]*\\b",
+
+  # "tits"
+  "\\btit[t]*(i|ies|ay|ays|ayz)*\\b",
+
+  # "tosser"
+  "\\btosser[sz]*\\b",
+
+  # "tranny"
+  "\\btr[a@4äáå]nn(y|ies|iez)+\\b",
+
+  # "turd"
+  "\\bturd[sz]*\\b",
+
+  # "twat"
+  "\\b[t7+†]w[a@4äáå][t7+†][zs]*\\b",
+
+  # "wank"
+  "\\bw[a@4äáå]n[k|<{(](z|er|ers|ing|az|a|ed)*\\b",
+
+  # "whore"
+  "\\b(cam|man|m)*wh[o0øöóõ]?r[e3€ëéê]*(d|s|z|ing)*\\b"
+
+)
+```
+
+
+# KWIC
+
+```{r}
+# Australia
+t0 <- Sys.time()
+df <- base::readRDS(file = here::here("test", "Australiadfc.rda"))
+
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Australia")
+
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Australia_kwic_results.rda"))
+t1 <- Sys.time()
+t1-t0
+
+# inspect
+head(kwic_results, 20); names(table(kwic_results$keyword)); nrow(kwic_results)
+```
+
+
+```{r eval = T}
+# Bangladesh
+df <- base::readRDS(file = here::here("test", "Bangladeshdfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Bangladesh")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Bangladesh_kwic_results.rda"))
+
+# Canada
+df <- base::readRDS(file = here::here("test", "Canadadfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Canada")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Canada_kwic_results.rda"))
+
+# GB-Blog
+df <- base::readRDS(file = here::here("test", "GB-Blogdfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "GB-Blog")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "GBBlog_kwic_results.rda"))
+
+# GB-General
+df <- base::readRDS(file = here::here("test", "GB-Generaldfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "GB-General")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "GBGeneral_kwic_results.rda"))
+
+# Ghana
+df <- base::readRDS(file = here::here("test", "Ghanadfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Ghana")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Ghana_kwic_results.rda"))
+
+# Hong Kong
+df <- base::readRDS(file = here::here("test", "Hong Kongdfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Hong Kong")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "HongKong_kwic_results.rda"))
+
+# India
+df <- base::readRDS(file = here::here("test", "Indiadfc.rda")) 
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "India")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "India_kwic_results.rda"))
+
+# Ireland
+df <- base::readRDS(file = here::here("test", "Irelanddfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Ireland")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Ireland_kwic_results.rda"))
+
+# Jamaica
+df <- base::readRDS(file = here::here("test", "Jamaicadfc.rda")) 
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Jamaica")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Jamaica_kwic_results.rda"))
+
+# Kenya
+df <- base::readRDS(file = here::here("test", "Kenyadfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Kenya")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Kenya_kwic_results.rda"))
+
+# Malaysia
+df <- base::readRDS(file = here::here("test", "Malaysiadfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Malaysia")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Malaysia_kwic_results.rda"))
+
+# New Zealand
+df <- base::readRDS(file = here::here("test", "New Zealanddfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "New Zealand")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "NewZealand_kwic_results.rda"))
+
+# Nigeria
+df <- base::readRDS(file = here::here("test", "Nigeriadfc.rda")) 
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Nigeria")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Nigeria_kwic_results.rda"))
+
+# Pakistan
+df <- base::readRDS(file = here::here("test", "Pakistandfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Pakistan")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Pakistan_kwic_results.rda"))
+
+# Philippines
+df <- base::readRDS(file = here::here("test", "Philippinesdfc.rda")) 
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Philippines")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Philippines_kwic_results.rda"))
+
+# Singapore
+df <- base::readRDS(file = here::here("test", "Singaporedfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Singapore")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Singapore_kwic_results.rda"))
+
+# South Africa
+df <- base::readRDS(file = here::here("test", "South Africadfc.rda")) 
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "South Africa")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "SouthAfrica_kwic_results.rda"))
+
+# Sri Lanka
+df <- base::readRDS(file = here::here("test", "Sri Lankadfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Sri Lanka")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "SriLanka_kwic_results.rda"))
+
+# Tanzania
+df <- base::readRDS(file = here::here("test", "Tanzaniadfc.rda"))
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "Tanzania")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "Tanzania_kwic_results.rda"))
+
+# US-Blog
+df <- base::readRDS(file = here::here("test", "US-Blogdfc.rda")) 
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "US-Blog")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "USBlog_kwic_results.rda"))
+
+# US-General
+df <- base::readRDS(file = here::here("test", "US-Generaldfc.rda"))  
+kwic_results <- quanteda::kwic(quanteda::tokens(stringi::stri_split_fixed(df$ctxt, " ")), pattern = patterns, valuetype="regex") %>%
+  as.data.frame() %>%
+  dplyr::select(-from, -to) %>%
+  dplyr::mutate(corpus = "US-General")
+# save
+base::saveRDS(kwic_results, file = here::here("test", "USGeneral_kwic_results.rda"))
+```
+
+```{r}
+head(df)
+```
+
+
+# Outro
+
+```{r}
+sessionInfo()
+```
+

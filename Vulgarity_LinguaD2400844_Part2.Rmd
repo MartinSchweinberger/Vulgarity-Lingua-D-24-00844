@@ -1,0 +1,438 @@
+---
+title: "Vulgar language on the web across World Englishes - Part 2: data processing"
+author: "Anonymous"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  bookdown::pdf_document2:
+    latex_engine: lualatex
+  tufte::tufte_handout:
+    latex_engine: xelatex
+bibliography: bibliography.bib
+link-citations: yes
+---
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+# Intro
+
+This document shows an analysis that was performed with the aim of finding differences in swearing across geographically distinct varieties of English around the world based on the GloWbE corpus. 
+
+install packages
+
+```{r install, eval = F, message=F, warning=F}
+# install packages
+install.packages("tidyverse")
+install.packages("quanteda")
+install.packages("here")
+install.packages("udpipe")
+install.packages("future")
+install.packages("furrr")
+install.packages("stringi")
+install.packages("parallel")
+install.packages("usethis")
+install.packages("data.table")
+devtools::install_github("jimjam-slam/ggflags")
+install.packages("ggflags")
+```
+
+load packages and set options
+
+```{r act, message=FALSE, warning=FALSE}
+# load packages
+library(data.table)
+library(tidyverse)
+library(quanteda)
+library(here)
+library(stringi)
+library(parallel)
+library(usethis)
+library(data.table)
+library(ggflags)
+```
+
+# data preparation
+
+# loading data
+
+raw
+
+```{r}
+# paths to results
+cdfs <- list.files(here::here("test"), pattern = "dfc.rda", full.names = T)
+# load tables
+lapply(cdfs, function(x) {
+  x <- readRDS(x)
+  }) -> lcdfs 
+# combine into a single df 
+data.table::rbindlist(lcdfs)   %>%
+  # remove NAs
+  dplyr::filter(txt != "") -> cdf
+# clean
+cdf  %>% 
+  dplyr::mutate(sfl = stringr::str_remove_all(sfl, ".txt.*")) %>%
+  # rename columns
+  dplyr::rename(corpus = crp,
+                file = sfl,
+                subfile = fl,
+                rawtext = txt,
+                cleantext = ctxt) -> df
+# inspect clean dataframe
+head(df)
+```
+
+create summary table
+
+```{r}
+df  %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(# count number of words
+    words = length(unlist(quanteda::tokenize_fastestword(cleantext))),
+    # determine type of data (blog vs general web)
+    type = dplyr::case_when(stringr::str_detect(file, "^w_") ~ "General Web",
+                            TRUE ~ "Blog")) -> dfw
+# save
+#base::saveRDS(dfw, file = here::here("test", "glowbe.rda"))
+# inspect
+head(dfw)
+```
+
+extract basic information
+
+```{r}
+# info table
+dfw %>%
+  dplyr::group_by(corpus, file, subfile, type) %>%
+  dplyr::summarise(tokens = sum(words))  -> glowbe_table 
+# save
+#base::saveRDS(glowbe_table, file = here::here("test", "glowbe_table.rda"))
+# inspect
+head(glowbe_table)
+```
+
+save and reload results
+
+```{r eval = F}
+dfw <- base::readRDS(file = here::here("test", "glowbe.rda"))
+glowbe_table <- base::readRDS(file = here::here("test", "glowbe_table.rda"))
+```
+
+# load kwics
+
+```{r}
+# paths to results
+kwics <- list.files(here::here("test"), pattern = "_kwic_results.rda", full.names = T)
+# inspect
+kwics
+```
+
+process kwics and combine into a single dataframe
+
+```{r}
+# load tables
+lapply(kwics, function(x) {
+  x <- readRDS(x)
+  }) -> kwicdfs 
+# combine into a single df 
+data.table::rbindlist(kwicdfs) -> kwicdf
+# inspect
+head(kwicdf)
+```
+
+## Lemma
+
+annotate lemmas
+
+```{r}
+kwicdf_annotated <- kwicdf %>% 
+  dplyr::mutate(lemma = dplyr::case_when(pattern ==  "\\b(dumb|stupid|lazy|worthless|useless|brain|dead|jack)*[a@4äáå]r[s5$§z][e3€ëéê][h]?[o0øöóõ]*[l1£][e3€ëéê]*[s5$§z]*\\b" ~  "arse(hole)",
+                                         pattern == "\\b(dumb|stupid|lazy|worthless|useless|brain|dead|jack)*[a@4äáå][s5$§z]{2,}[h]?[o0øöóõ]*[l1|£][e3€ëéê]*[s5$§z]*\\b" ~ "ass(hole)",
+    pattern == "\\b[8ß|3][i1!|ïíì]+[a@4äáå]*[t7+†][c¢©(][h](es|ez|ing|ed)*\\b" ~ "bitch",
+    pattern == "\\b[8ß|3][a@4äáå][s5$§z][t7+†][a@4äáå]r[d][o]*(s|z)*\\b" ~ "bastard",
+    pattern == "\\b[8ß|3][e3€ëéê][a@4äáå]n[e3€ëéê]r(s|z)*\\b" ~ "beaner",
+    pattern ==   "\\b[8ß|3][e3€ëéê]ll[e3€ëéê]nd(s|z)*\\b" ~ "bellend",
+    pattern ==     "\\b[8ß|3][1!|ïíì]mb[o0øöóõ](s|z)*\\b" ~ "bimbo",
+    pattern == "\\bbl[o0øöóõ]{2,}d[iy¥](ed)*\\b" ~ "bloody",
+    pattern == "\\b[8ß|3][o0øöóõ]ll[o0øöóõiïíì][xc¢©(k|<{(]+[s5$§z]?\\b" ~ "bollocks",
+    pattern == "\\bboner[s]*\\b" ~ "boner", 
+    pattern == "\\b[8ß|3][o0øöóõ]n[k|<{(](in|ing)*\\b" ~ "bonk",
+    pattern == "\\b[8ß|3][o0øöóõ]{2,}[b8ß|3][ie]*[s5$§z]?\\b" ~ "boobs",
+    pattern == "\\b[8ß|3][u|µüúû]gg[e3€ëéê]r(ing|s|z)*\\b" ~ "bugger",
+    pattern == "\\b[b8ß|3][u|µüúû]ll[s5$§z]h[1!|ïíì]+[t7+†]*\\b" ~ "bullshit",
+    pattern == "\\b[b8ß3][uµüúû][t7+†][t7+†][sz]*(face|head|wit|whipe|hole|h)*[hl]*[sz]*\\b" ~ "butt(hole)",
+    pattern == "\\b(god)*damn\\b" ~ "damn",
+    pattern == "\\bdarki(es)*\\b" ~ "darkie",
+    pattern == "\\b(bull)*d[iy]*ke(s|z)*\\b" ~ "dike",
+    pattern == "\\bdildo(s|z)*\\b" ~ "dildo",
+    pattern == "\\bdork(s|z)*\\b" ~ "dork",
+    pattern == "\\beff(ing|in|ed|d)*[-._+ ]*[(you|up|off)]*\\b" ~ "eff",
+    pattern == "\\bfann(y|ies)+\\b" ~ "fanny",
+    pattern == "\\bfart(s|z|ing|in|ed)*\\b" ~ "fart",
+    pattern == "\\bfrig(g|gin|ging|ged|gs)*\\b" ~ "frig",
+    pattern == "\\b(cluster|head|mother|motha|mutha|mada|cock|mom|mum|daddy|father|sister|brother)*[f=ƒ][uµüúû|@a4äáå|e3€ëéê|o0øöóõ|*]*[c¢©(]*[k|<{(][e3€ëéê]*[r]*(head|face|wit|ing|er|a|ed|ers|az)*\\b" ~ "fuck",
+    pattern == "\\bf[-._+ ](me|you|it|this|that|the|these|those|him|her|us|them)+\\b" ~ "fuck",
+    pattern == "\\b[f=ƒ][c¢©(*k<{(uµüúû*]+\\b" ~ "fuck",
+    pattern == "\\bgash\\b" ~ "gash",
+    pattern == "\\bg[o]*ok(s|z)*\\b" ~ "gook",
+    pattern == "\\bidiot(s|z)*\\b" ~ "idiot",
+    pattern == "\\bjacka[s5$§z][s5$§z]\\b" ~ "jackass",
+    pattern == "\\bjap[zs]*\\b" ~ "jap",
+    
+    pattern == "\\bjerk(s|z|in|ing|ed)*\\b" ~ "jerk",
+    pattern == "\\bji[s5$§z][s5$§z]+\\b" ~ "jiss",
+    pattern == "\\bjug[g]*[s5$§z]*\\b" ~ "jug",
+    pattern == "\\b[(dip)]*[s5$§z]h[1!|ïíì]+[t7+†]*(ing|e|in|er|a|ed|ers|az|s|z)*\\b" ~ "shit",
+    pattern == "\\bktfo\\b" ~ "online",
+    pattern == "\\bstfu\\b" ~ "online",
+    pattern == "\\bgtfo\\b" ~ "online",
+    pattern == "\\bngaf\\b" ~ "online",
+    pattern == "\\bdgaf\\b" ~ "online",
+    pattern == "\\bffs\\b" ~ "online",
+    pattern == "\\bfml\\b" ~ "online",
+    pattern == "\\bomfg\\b" ~ "online",
+    pattern == "\\baf\\b" ~ "online",
+    pattern == "\\btf\\b" ~ "online",
+    pattern == "\\bwtf\\b" ~ "online",
+    pattern == "\\blmao\\b" ~ "online",
+    pattern == "\\blmfao\\b" ~ "online",
+    pattern == "\\brofl\\b" ~ "online",
+    pattern == "\\bch[i]*nk[zs]*\\b" ~ "chink",
+    pattern == "\\bcoon[zs]*\\b" ~ "coon",
+    pattern == "\\b[bull]*crap(ping|ped|s|z|pin)*\\b" ~ "crap",
+    pattern == "\\bcum(ming)*\\b" ~ "cum",  
+    pattern == "\\bc[o0øöóõ][c¢©]+[(k|<{(|x]+(suck|sak|suk)*[k]*(er|ers|a|az|as)*\\b" ~ "cock",
+    pattern == "\\b[kc¢©(][u|µüúû]*nt[zs]*\\b" ~ "cunt",
+    pattern == "\\b[d][1!|ïíì][c¢©(][xk|<{(][(head)]*[zs]*\\b" ~ "dick",
+    pattern == "\\b[f|=ƒ][a@4äáåe]g[g]*[ioa]*[t]*[zs]*\\b" ~ "fag(got)",
+
+    pattern == "\\bh[o0øöóõ][e3€ëéê][zs]*\\b" ~ "hoe",
+    pattern == "\\bh[o0øöóõ]r[e3€ëéê]*[zs]*\\b" ~ "whore",
+    pattern == "\\b[k|<{(][i1!ïíìy][k|<{(][e3€ëéê][zs]*\\b" ~ "kike",
+    pattern == "\\bn[i1!ïíì]gg[e3€ëéê|@a4äáå][r]*[zs]*\\b" ~ "nigger",
+    pattern == "\\bknob[(head)]*[zs]*\\b" ~ "knob",
+    pattern == "\\blesbo[sz]*\\b" ~ "lesbo",
+    pattern == "\\bming[(a|er)]+(s|z)*\\b" ~ "minger" ,
+    pattern == "\\bm[o|u]ron(ic|s|z)*\\b" ~ "moron",
+    pattern == "\\bmuff\\b" ~ "muff",
+    pattern == "\\bnonce\\b" ~ "nonce",
+    pattern == "\\bnympho\\w*\\b" ~ "nympho",
+    pattern == "\\bp[e3€ëéê]ck[ae]?[rs]*\\b" ~ "pecker",
+    pattern == "\\bp[e3€ëéê]do[philf]*[e]*[zs]*\\b" ~ "pedo",
+    pattern == "\\bpik(i|is|ey|ies|eys|eyz|iez|iz)+\\b" ~ "pikey",
+    pattern == "\\bpimp(s|ing|in|z|ed)*\\b" ~ "pimp",
+    pattern == "\\bp[i1!|ïíì][s5$§z][s5$§]+(in|ing|er|a|ers|erz)*\\b" ~ "piss",
+    pattern == "\\bpooft(er|ers|as|az)+\\b" ~ "poofter",
+    pattern == "\\bprick[zs]*\\b" ~ "prick",
+    pattern == "\\bpuk[e]*(s|z|ing|ed)*\\b" ~ "puke",
+    pattern == "\\bp[u|µüúû][s5$§z][s5$§z][@a4äáå]*[y¥][zs]*\\b" ~ "pussy",
+    pattern == "\\bqu[e]+[a]*f(s|z|ing|ed)*\\b" ~ "queef",
+    pattern == "\\bscr[e]+w(ing|ed|s|z)*\\b" ~ "screw",
+    pattern == "\\bshag(ging|gin|ged)*\\b" ~ "shag",
+    pattern == "\\bskank[yzs]*\\b" ~ "skank",
+    pattern == "\\bslag[zs]*\\b" ~ "slag" ,
+    pattern == "\\b[s5$§z]l[uµüúû][t7+†](i|y)*[zs]*\\b" ~ "slut",
+    pattern == "\\bsod[d]*[sz]*(ing)*\\b" ~ "sod",
+    pattern == "\\bspast(ic|ics|icz)*\\b" ~ "spastic",
+    pattern == "\\bretard[zs]*\\b" ~ "retard",
+    pattern == "\\btit[t]*(i|ies|ay|ays|ayz)*\\b" ~ "tits",
+    pattern == "\\btosser[sz]*\\b" ~ "tosser",
+    pattern == "\\btr[a@4äáå]nn(y|ies|iez)+\\b" ~ "tranny",
+    pattern == "\\bturd[sz]*\\b" ~ "turd",
+    pattern == "\\b[t7+†]w[a@4äáå][t7+†][zs]*\\b" ~ "twat",
+    pattern == "\\bw[a@4äáå]n[k|<{(](z|er|ers|ing|az|a|ed)*\\b" ~ "wank",
+    pattern == "\\b(cam|man|m)*wh[o0øöóõ]?r[e3€ëéê]*(d|s|z|ing)*\\b" ~ "whore",
+    pattern == "\\b[f|=ƒ][-._+ ]*[u|µüúû][-._+ ]*[c¢©(][-._+ ]*[k|<{(][-._+ ]*[s5$§z]*(ing|in|ed)*\\b" ~ "fuck",
+    pattern == "\\b[s5$§z][-._+ ]*[h][-._+ ]*[i1!|ïíì]+[-._+ ]*[t7+†][e3€ëéê]*\\b" ~ "shit",
+    pattern == "\\b[a@4äáå][-._+ ]*[s5$§z][-._+ ]*[s5$§z]\\b" ~ "ass",
+    pattern == "\\b[f=ƒ][c¢©(*k<{(uµüúû*]+(ing|er|a|ed|ers|az)*\\b" ~ "fuck",
+    pattern == "\\bf\\b" ~ "fuck",
+    pattern == "\\beff(ing|in|ed|d)*\\b" ~ "eff",
+T ~ pattern))
+# inspect
+names(table(kwicdf_annotated$lemma))
+```
+
+
+check kwics
+
+```{r eval = F}
+#kwicdf %>%   dplyr::filter(stringr::str_detect(keyword, "\\bjerk")) 
+names(table(kwicdf_annotated$keyword))
+```
+
+# Clean kwic
+
+```{r}
+kwicdf_clean <- kwicdf_annotated %>%
+  # Retain rows where 'lemma' is 'hoe' and 'pre' ends with specified phrases
+  filter(!(lemma == "hoe" & !str_detect(pre, "(such a( \\w+)?|other|is a|that( \\w+)?)\\b$")))
+
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Remove rows where 'keyword' contains specific unwanted patterns
+  filter(!str_detect(keyword, "fak(r|er|ing|ers|ed|e)+")) %>%
+  filter(!str_detect(keyword, "fk(r|er|ing|ers|ed|e)+")) %>%
+  filter(!str_detect(keyword, "\\w\\+f$")) %>%
+  filter(!str_detect(keyword, "n\\|f")) %>%
+  filter(!str_detect(keyword, "^\\+f$")) %>%
+  filter(!str_detect(keyword, "=(x|a|r|v|c|k|f)")) %>%
+  filter(!str_detect(keyword, "(x|a|r|v|c|k|f)=")) %>%
+  filter(!str_detect(keyword, "feg(i|o)")) %>%
+  filter(!str_detect(keyword, "^feek.*")) %>%
+  filter(!str_detect(keyword, "(x|a|r|v|c|k|f)\\+")) %>%
+  filter(!str_detect(keyword, "\\+(x|a|r|v|c|k|f)"))  %>%
+  dplyr::filter(!str_detect(keyword, "^\\$")) %>%
+  dplyr::filter(!str_detect(keyword, "\\d{3}")) %>%
+  dplyr::filter(!str_detect(keyword, "\\d{2}=")) %>%
+  dplyr::filter(!str_detect(keyword, "fag(a|o)+")) %>%
+  dplyr::filter(!str_detect(keyword, "fauk\\w*")) %>%
+  dplyr::filter(!str_detect(keyword, "hoess")) %>%
+  dplyr::filter(!str_detect(keyword, "z=u")) %>%
+  dplyr::filter(!str_detect(keyword, "\\+jug")) %>%
+  dplyr::filter(!str_detect(keyword, "2=u")) %>%
+  dplyr::filter(!str_detect(keyword, "b=ok")) %>%
+  dplyr::filter(!str_detect(keyword, "st=ok")) %>%
+  dplyr::filter(!str_detect(keyword, "stat=u")) %>%
+  dplyr::filter(!str_detect(keyword, "t=0k")) %>%
+  dplyr::filter(!str_detect(keyword, "^feak\\*")) %>%
+  dplyr::filter(!str_detect(keyword, "^fc+$")) %>%
+  dplyr::filter(!str_detect(keyword, "^f[c]+a.*$")) %>%
+  dplyr::filter(!str_detect(keyword, "^fauc.*$")) %>%
+  dplyr::filter(!str_detect(keyword, "^f\\$\\d+$"))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Remove rows where 'lemma' is 'jerk' and 'pre' ends with 'knee' or 'chest'
+  filter(!(lemma == "jerk" & str_detect(pre, "(knee|chest)$"))) %>%
+  
+  # Retain rows where 'lemma' is 'jerk' and:
+  # - 'post' starts with 'off', or
+  # - 'pre' ends with 'this', 'that', 'such a', or 'is a'
+  filter(!(lemma == "jerk" & 
+           !(str_detect(post, "^off\\b") | str_detect(pre, "(this|that|such a|is a)\\b$"))))
+
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Retain rows where 'lemma' is 'eff' and 'post' starts with 'you', 'it', 'off', or 'up'
+  filter(!(lemma == "eff" & !str_detect(post, "^(you|it|off|up)"))) 
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Remove rows where 'lemma' is 'f' unless 'post' starts with specified pronouns or similar words or pre ends with flying
+  filter(!(keyword == "f" & !str_detect(post, "^(king|me|you|it|this|that|these|those|him|her|us|them)\\b")| str_detect(pre, "(flying)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'lemma' is 'crap' and 'pre' ends with specified phrases
+  filter(!(lemma == "crap" & str_detect(pre, "(metal|poker|roulette)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Remove rows where 'lemma' is 'dyke' and 'pre' does not end with specified phrases
+  filter(!(lemma == "dyke" & !str_detect(pre, "\\b(a|like|butch|bull|all|fags|as|fucking|club)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'lemma' is 'faggot' and 'pre' ends with specified phrases
+  filter(!(keyword == "faggot" & str_detect(post, "(bearer)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Remove rows where 'keyword' is 'fag' and 'pre'  ends with specified phrases
+  filter(!(keyword == "fags" & str_detect(pre, "\\b(of|and|buy|the|few|candy)\\b$") | str_detect(post, "^(to)\\b")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'keyword' is 'fk' and 'pre' ends with specified phrases
+  filter(!(keyword == "fk" & str_detect(pre, "(bryne)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'keyword' is 'jiss' and 'pre' ends with specified phrases
+  filter(!(keyword == "jizz" & str_detect(pre, "\\b(dns)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'keyword' is 'fu' and 'pre' ends with specified phrases
+  filter(!(keyword == "fu" & str_detect(pre, "(k(ou)ng)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Remove rows where 'keyword' is 'knob' and 'post' does not end with specified phrases
+  filter(!(lemma == "knob" & !str_detect(post, "^\\b(head[s]?)\\b")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'keyword' is 'pecker' and 'pre' ends with specified phrases
+  filter(!(keyword == "pecker" & str_detect(pre, "\\b(a|wood|of|so)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Retain rows where 'lemma' is 'sod' and 'pre' ends with a xxx xxx
+  filter(!(lemma == "sod" & !str_detect(pre, "\\ba[n]{0,1}( \\w+)?( \\w+)?$"))) 
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'keyword' is 'sodd' and 'post' starts with specified phrases
+  filter(!(keyword == "sodd" & str_detect(post, "^\\b(s)\\b")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'keyword' is 'sodd' and 'pre' ends with specified phrases
+  filter(!(keyword == "sods" & str_detect(pre, "\\band\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Remove rows where 'keyword' is 'tf' and 'pre' does not end with specified phrases
+  filter(!(lemma == "tf" & !str_detect(pre, "\\b(how)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # Retain rows where 'keyword' is 'wanka' and 'pre' ends with specified phrases
+  filter(!(keyword == "wanka" & !str_detect(pre, "(such a( \\w+)?|other|is a|that( \\w+)?)\\b$")))
+
+kwicdf_clean <- kwicdf_clean %>%
+  # remove rows where 'keyword' is 'whor' and 'pre' ends with specified phrases
+  filter(!(keyword == "whor" & str_detect(pre, "\\b(casteism)\\b$")))
+
+# inspect
+kwicdf_clean[which(kwicdf_clean$keyword == "whrs"),]
+#names(table(kwicdf_clean$keyword))
+```
+
+
+Bulk exclusion after manual check
+
+```{r}
+exclude <- c("af", "arsel", "arzel", "assle", "asslee", "azzl", "ba$turd", "ba$turd$", "bolivares=u", "chink", "chinks", "chnk", "cnt", "cnts", "coon", "coons", "crap$", "crap=80x", "cum", "daleks=eggs", "darki", "dike", "dikes", "dke", "dkes", "dsh1", "dt=u", "effinded", "eggs=ok", "england=uk", "f$0", "f$1", "f$1$", "f$1$$n$", "f$2", "f$2$", "f$2$$n$", "f$47", "f$50", "f$6", "f$65", "f$78", "f$b", "f$n$", "f$sr", "f$u", "f^a", "f|~n", "f|l", "facke", "faek", "fagg", "faggo", "faggs", "fagi", "fagia", "fagio", "fak", "fanny", "faouk", "fcu", "feack", "feak", "feaked", "feaker", "feaking", "fecke", "feckeed", "feg", "fegg", "fegs", "feka", "feke", "feker", "feock", "feok", "ffs", "fh$f", "fk3", "fka", "fkc", "fkk", "fkkc", "fkkk", "fml", "foak", "fock", "focka", "focke", "focker", "fockers", "foecke", "fok", "foka", "fokaa", "foke", "foker", "food=ok", "fook", "foucker", "fouk", "fouka", "fouke", "frig", "frigg", "fu", "fua", "fuaa", "fuca", "fucc", "fucca", "fuccer", "fued", "fueded", "fueding", "fuek", "fuer", "fuera", "fuerer", "fuing", "fuingers", "fuka", "fuke", "fuku", "fukua", "fuu", "gash", "gok", "goks", "gook", "gone=ok", "gooook", "h=u+pv", "hor", "hore", "hores", "horez", "hors", "horss", "horz", "i=ego", "japss", "japz", "jug", "jugg", "juggs", "juggz", "jugs", "k1kes", "kike", "knobe", "knobes", "knobs", "knobz", "knt", "knts", "kntz", "kunt", "kunts", "kuntz", "l|f", "l21t=u", "lesbos", "lo=uck", "m=uk", "mayai=eggs", "mexico=u", "minga", "mingar", "mingas", "minge", "minger", "mingers", "minges", "muff", "muron", "mwhr", "mwhrs", "n=u", "name=u", "ned=u", "niggars", "nigge", "nigger", "nigges", "nymphoid", "nymphoides", "nympholepsy", "nympholeptic", "nymphomaniacal", "nymphooides", "p=uk", "p1$$d", "peck", "pecka", "pecke", "pecks", "pedoe", "pikey", "piki", "pikies", "pikis", "pissa", "pisser", "pmat=u", "puk", "pukings", "puks", "s=u", "sh1", "sh11", "shag=whoops", "sluty", "smoothie=ek", "soding", "tf", "tit", "titay", "titi", "titt", "titti", "view=uk", "whorings", "whr", "whrd", "whrds", "whre", "whrs", "xian=moron")
+
+kwicdf_clean <- kwicdf_clean %>%
+  filter(!keyword %in% exclude)
+
+```
+
+
+# Remove duplicate rows using dplyr
+
+```{r}
+nrow(kwicdf_clean)
+kwicdf_clean <- kwicdf_clean %>% dplyr::select(-pattern)
+kwicdf_clean <- kwicdf_clean %>% dplyr::distinct()
+nrow(kwicdf_clean)
+```
+
+
+check kwics
+
+```{r}
+kwicdf_clean[which(kwicdf_clean$keyword == "jizz"),] 
+```
+
+# Check KWICs
+
+```{r}
+kwicdf_clean %>% filter(corpus == "Malaysia", lemma == "online")
+```
+
+
+
+
+# Save KWIC
+
+```{r}
+base::saveRDS(kwicdf_clean, file = here::here("test", "kwic_results_clean.rda"))
+```
+
+
+# Outro
+
+```{r}
+sessionInfo()
+```
+
+

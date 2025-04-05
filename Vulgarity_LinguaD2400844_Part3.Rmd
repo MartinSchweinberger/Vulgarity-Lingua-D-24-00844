@@ -1,0 +1,714 @@
+---
+title: "Vulgar language on the web across World Englishes - Part 3: data cleaning"
+author: "Anonymous"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  bookdown::pdf_document2:
+    latex_engine: lualatex
+  tufte::tufte_handout:
+    latex_engine: xelatex
+bibliography: bibliography.bib
+link-citations: yes
+---
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+# Intro
+
+This document shows an analysis that was performed with the aim of finding differences in swearing across geographically distinct varieties of English around the world based on the GloWbe corpus. 
+
+install packages
+
+```{r install, eval = F, message=F, warning=F}
+# install packages
+install.packages("tidyverse")
+install.packages("quanteda")
+install.packages("here")
+install.packages("udpipe")
+install.packages("future")
+install.packages("furrr")
+install.packages("stringi")
+install.packages("parallel")
+install.packages("usethis")
+install.packages("data.table")
+install.packages("ggrepel")
+install.packages("writexl")
+# devtools::install_github("jimjam-slam/ggflags")
+install.packages("ggflags")
+```
+
+load packages and set options
+
+```{r act, message=FALSE, warning=FALSE}
+# load packages
+library(data.table)
+library(tidyverse)
+library(quanteda)
+library(here)
+library(stringi)
+library(parallel)
+library(usethis)
+library(data.table)
+library(ggflags)
+library(ggrepel)
+library(writexl)
+```
+
+# data cleaning
+
+# loading data
+
+kwics
+
+```{r}
+kwics <- base::readRDS(file = here::here("test", "kwic_results_clean.rda")) 
+# inspect
+head(kwics)
+```
+
+differentaite between feck and fuck
+
+```{r}
+kwics <- kwics %>%
+  dplyr::mutate(lemma = dplyr::case_when(lemma == "fuck" & stringr::str_detect(keyword, "fe[c]*k") ~ "feck",
+                                         T ~ lemma))
+```
+
+
+# lemmas retained
+
+number of lemmas
+
+```{r}
+length(names(table(kwics$lemma)))
+```
+
+lemmas
+
+```{r}
+names(table(kwics$lemma))
+```
+
+
+number of forms of lemma fuck
+
+```{r}
+kwics %>%
+  dplyr::filter(lemma == "fuck") %>%
+  dplyr::group_by(keyword) %>%
+  dplyr::summarise(freq = n(), 
+                   n = 1) %>%
+  dplyr::mutate(n = sum(n))
+
+```
+
+forms of lemma fuck
+
+```{r}
+set.seed(20250220)
+kwics %>%
+  dplyr::filter(lemma == "fuck") %>%
+  dplyr::group_by(keyword) %>%
+  dplyr::summarise(freq = n(), 
+                   n = 1) %>%
+  dplyr::mutate(n = sum(n)) %>% sample_n(20) %>%
+  dplyr::pull(keyword) 
+
+```
+
+all forms
+
+```{r}
+set.seed(20250220)
+kwics %>%
+  dplyr::group_by(keyword) %>%
+  dplyr::summarise(freq = n(), 
+                   n = 1) %>%
+  dplyr::mutate(n = sum(n)) %>% 
+  dplyr::pull(keyword) 
+
+```
+
+
+# Checking kwic
+
+```{r}
+kwics %>% filter(corpus == "India", lemma == "cum")
+```
+
+
+
+
+
+
+```{r}
+kwicstb <- kwics %>%
+  dplyr::mutate(vulgar = 1) %>%
+  dplyr::group_by(corpus, docname) %>%
+  dplyr::summarise(VulgarTokens = n(),
+                   VulgarTypes = length(names(table(keyword))))
+
+# inspect
+head(kwicstb)
+```
+
+
+
+```{r}
+glowbetb <- base::readRDS(file = here::here("test", "glowbe_table.rda")) %>%
+  dplyr::ungroup()  %>%
+  dplyr::mutate(id = 1:nrow(.),
+                type = stringr::str_replace_all(file, ".*_([bg])\\d+", "\\1")) %>%
+  dplyr::mutate(type = ifelse(type == "g", "General Web", "Blog")) %>%
+  dplyr::group_by(corpus) %>%
+  dplyr::mutate(docname = paste0("text", 1:length(id)))
+# inspect
+head(glowbetb)
+```
+
+
+```{r}
+glowbetb %>% group_by(corpus, type) %>% summarise(freq = n())
+```
+
+
+test
+
+```{r}
+Testtb <- glowbetb %>%
+  dplyr::group_by(corpus, type) %>%
+  dplyr::summarise(Tokens = sum(tokens))
+# inspect
+Testtb
+```
+
+
+
+
+
+
+# combine kwics and glowbe_table
+
+```{r}
+res <- dplyr::left_join(glowbetb, kwicstb) %>%
+  dplyr::mutate(VulgarTokens = ifelse(is.na(VulgarTokens), 0, VulgarTokens),
+                VulgarTypes = ifelse(is.na(VulgarTypes), 0, VulgarTypes))  %>%
+  dplyr::mutate(corpus = dplyr::case_when(corpus == "GB-Blog" ~ "Great Britain",
+                                          corpus == "GB-General" ~ "Great Britain",
+                                          corpus == "US-Blog" ~ "United States",
+                                          corpus == "US-General" ~ "United States",
+                                          T ~ corpus))
+# inspect
+head(res, 100); table(res$VulgarTokens)
+```
+
+
+
+
+```{r}
+res %>%
+  group_by(corpus) %>%
+  summarise(freq = n(),
+            vul = sum(VulgarTokens))
+```
+
+
+
+# Table 1
+
+```{r}
+# Assuming 'res' is your initial data frame
+Table1 <- res %>%
+  ungroup() %>%
+  dplyr::rename(VulgarTexts = VulgarTypes) %>%
+  group_by(corpus, type) %>%
+  summarise(
+    Texts = n(),
+     VulgarTexts = sum(ifelse(VulgarTexts > 0, 1, 0), na.rm = TRUE),
+    VulgarTokens = sum(VulgarTokens, na.rm = TRUE),
+    Tokens = sum(tokens, na.rm = TRUE),
+    Percent = round(sum(VulgarTokens, na.rm = TRUE) / sum(tokens, na.rm = TRUE) * 100, 3)
+  ) %>%
+  rename(
+    Region = corpus,
+    `Discourse Type` = type
+  )
+
+# Calculate totals
+totals <- Table1 %>%
+  dplyr::ungroup()  %>%
+  summarise(
+    Region = "Total",
+    `Discourse Type` = "",
+    Texts = sum(Texts, na.rm = TRUE),
+    VulgarTexts = sum(VulgarTexts, na.rm = TRUE),
+    VulgarTokens = sum(VulgarTokens, na.rm = TRUE),
+    Tokens = sum(Tokens, na.rm = TRUE),
+    Percent = round(sum(VulgarTokens, na.rm = TRUE) / sum(Tokens, na.rm = TRUE) * 100, 3)
+  )
+
+# Bind the totals row to the original summary
+Table1 <- bind_rows(Table1, totals)
+
+# save 
+writexl::write_xlsx(Table1, here::here("tables", "Table1.xlsx"))
+# inspect
+Table1
+```
+
+
+# Figure 1
+
+```{r}
+res  %>%
+    ungroup() %>%
+  dplyr::rename(VulgarTexts = VulgarTypes) %>%
+  dplyr::group_by(corpus) %>%
+  dplyr::summarise(Texts = n(),
+                   VulgarTexts = sum(ifelse(VulgarTexts > 0, 1, 0), na.rm = TRUE),,
+                   VulgarTokens = sum(VulgarTokens),
+                   Tokens = sum(tokens)) %>%
+  dplyr::mutate(Percent =  round(VulgarTokens/Tokens *100, 3)) %>%
+  dplyr::mutate(Kachru = dplyr::case_when(corpus == "Australia" ~ "Inner circle",
+                                          corpus == "Canada" ~ "Inner circle",
+                                          corpus == "Great Britain" ~ "Inner circle",
+                                          corpus == "Ireland" ~ "Inner circle",
+                                          corpus == "New Zealand" ~ "Inner circle",
+                                          corpus == "United States" ~ "Inner circle",
+                                          T ~ "outer circle")) %>%
+  dplyr::mutate(country = dplyr::case_when(corpus == "Australia" ~ "au",
+                                           corpus == "Bangladesh" ~ "bd",
+                                           corpus == "Canada" ~ "ca",
+                                           corpus == "Great Britain" ~ "gb",
+                                           corpus == "Ghana" ~ "gh",
+                                           corpus == "Hong Kong" ~ "hk",
+                                          corpus == "Ireland" ~ "ie",
+                                          corpus == "India" ~ "in",
+                                          corpus == "Jamaica" ~ "jm",
+                                          corpus == "Kenya" ~ "ke",
+                                          corpus == "Malaysia" ~ "my",
+                                          corpus == "New Zealand" ~ "nz",
+                                          corpus == "Nigeria" ~ "ng",
+                                          corpus == "Pakistan" ~ "pk",
+                                          corpus == "Philippines" ~ "ph",
+                                          corpus == "Singapore" ~ "sg",
+                                          corpus == "South Africa" ~ "za",
+                                          corpus == "Sri Lanka" ~ "lk",
+                                          corpus == "Tanzania" ~ "tz",
+                                          corpus == "United States" ~ "us",
+                                          T ~ NA)) -> Figure1dat
+# inspect
+head(Figure1dat)
+```
+
+
+
+```{r}
+Figure1dat %>%
+  ggplot(aes(x = reorder(corpus, Percent), 
+             y = Percent, 
+             country = country, 
+             label = Percent, 
+             fill = Kachru)) +
+  geom_bar(stat = "identity") +
+  ggflags::geom_flag(size = 4) +
+   geom_text(hjust = -1.1, color = "black", size = 3)+
+  coord_flip(ylim = c(0, 0.05)) +
+  scale_fill_manual(values = c("gray90", "gray70")) +
+  theme_bw() +
+  labs(xlab = "", ylab = "Percent") +
+  theme(legend.position = c(0.8, 0.5),
+        legend.title = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.title.y=element_blank())
+ggsave(here::here("images", "Fig1.png"), width = 14, height = 10, units = "cm", dpi = 600)
+```
+
+
+# Figure 2
+
+```{r}
+res  %>%
+  ungroup() %>%
+  dplyr::rename(VulgarTexts = VulgarTypes) %>%
+  dplyr::group_by(corpus, type) %>%
+    dplyr::summarise(Texts = n(),
+                   VulgarTexts = sum(ifelse(VulgarTexts > 0, 1, 0), na.rm = TRUE),,
+                   VulgarTokens = sum(VulgarTokens),
+                   Tokens = sum(tokens)) %>%
+  dplyr::mutate(Percent =  round(VulgarTokens/Tokens *100, 3)) %>%
+  dplyr::mutate(Kachru = dplyr::case_when(corpus == "Australia" ~ "Inner circle",
+                                          corpus == "Canada" ~ "Inner circle",
+                                          corpus == "Great Britain" ~ "Inner circle",
+                                          corpus == "Ireland" ~ "Inner circle",
+                                          corpus == "New Zealand" ~ "Inner circle",
+                                          corpus == "United States" ~ "Inner circle",
+                                          T ~ "outer circle")) %>%
+  dplyr::mutate(country = dplyr::case_when(corpus == "Australia" ~ "au",
+                                           corpus == "Bangladesh" ~ "bd",
+                                           corpus == "Canada" ~ "ca",
+                                           corpus == "Great Britain" ~ "gb",
+                                           corpus == "Ghana" ~ "gh",
+                                           corpus == "Hong Kong" ~ "hk",
+                                          corpus == "Ireland" ~ "ie",
+                                          corpus == "India" ~ "in",
+                                          corpus == "Jamaica" ~ "jm",
+                                          corpus == "Kenya" ~ "ke",
+                                          corpus == "Malaysia" ~ "my",
+                                          corpus == "New Zealand" ~ "nz",
+                                          corpus == "Nigeria" ~ "ng",
+                                          corpus == "Pakistan" ~ "pk",
+                                          corpus == "Philippines" ~ "ph",
+                                          corpus == "Singapore" ~ "sg",
+                                          corpus == "South Africa" ~ "za",
+                                          corpus == "Sri Lanka" ~ "lk",
+                                          corpus == "Tanzania" ~ "tz",
+                                          corpus == "United States" ~ "us",
+                                          T ~ NA))  -> Figure2dat
+# inspect
+head(Figure2dat)
+```
+
+
+
+```{r}
+Figure2dat %>%
+  ggplot(aes(x = reorder(corpus, Percent), 
+             y = Percent, 
+             country = country, 
+             label = Percent, 
+             fill = type)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  ggflags::geom_flag(aes(y = 0), size = 4) +
+  geom_text(color = "black", hjust = -0.2, size = 3, position = position_dodge(width = .9))+
+  coord_flip(ylim = c(0, 0.05)) +
+  scale_fill_manual(breaks = c("General Web", "Blog"), values = c("gray90", "gray70")) +
+  theme_bw() +
+  labs(xlab = "", ylab = "Percent") +
+  theme(legend.position = c(0.7, 0.3),
+        legend.title = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.title.y=element_blank())
+ggsave(here::here("images", "Fig2.png"), width = 14, height = 14, units = "cm", dpi = 600)
+```
+
+# Figure 3
+
+```{r}
+Table1  %>%
+  dplyr::mutate(PercentVulgar =  round((VulgarTexts/Texts) *100, 1)) %>%
+  dplyr::filter(Region != "Total") %>%
+  dplyr::mutate(Kachru = dplyr::case_when(Region == "Australia" ~ "Inner circle",
+                                          Region == "Canada" ~ "Inner circle",
+                                          Region == "Great Britain" ~ "Inner circle",
+                                          Region == "Ireland" ~ "Inner circle",
+                                          Region == "New Zealand" ~ "Inner circle",
+                                          Region == "United States" ~ "Inner circle",
+                                          T ~ "outer circle")) %>%
+  dplyr::mutate(country = dplyr::case_when(Region == "Australia" ~ "au",
+                                           Region == "Bangladesh" ~ "bd",
+                                           Region == "Canada" ~ "ca",
+                                           Region == "Great Britain" ~ "gb",
+                                           Region == "Ghana" ~ "gh",
+                                           Region == "Hong Kong" ~ "hk",
+                                          Region == "Ireland" ~ "ie",
+                                          Region == "India" ~ "in",
+                                          Region == "Jamaica" ~ "jm",
+                                          Region == "Kenya" ~ "ke",
+                                          Region == "Malaysia" ~ "my",
+                                          Region == "New Zealand" ~ "nz",
+                                          Region == "Nigeria" ~ "ng",
+                                          Region == "Pakistan" ~ "pk",
+                                          Region == "Philippines" ~ "ph",
+                                          Region == "Singapore" ~ "sg",
+                                          Region == "South Africa" ~ "za",
+                                          Region == "Sri Lanka" ~ "lk",
+                                          Region == "Tanzania" ~ "tz",
+                                          Region == "United States" ~ "us",
+                                          T ~ NA))   -> Fig3dat
+# inspect
+Fig3dat
+```
+
+
+```{r}
+Fig3dat %>%
+  ggplot(aes(x = reorder(Region, PercentVulgar), 
+             y = PercentVulgar, 
+             country = country, 
+             label = PercentVulgar, 
+             fill = `Discourse Type`)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  ggflags::geom_flag(aes(y = 0), size = 4) +
+  geom_text(color = "black", hjust = -0.5, size = 3, position = position_dodge(width = .9))+
+  coord_flip(ylim = c(0, 15)) +
+  scale_fill_manual(breaks = c("General Web", "Blog"), values = c("gray90", "gray70")) +
+  theme_bw() +
+  theme(legend.position = c(0.7, 0.3),
+        legend.title = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.title.y=element_blank()) +
+  labs(xlab = "", ylab = "Percent") 
+ggsave(here::here("images", "Fig3.png"), width = 14, height = 14, units = "cm", dpi = 600)
+```
+
+# Figure 4 (CTTR)
+
+```{r}
+#head(kwics)
+kwics   %>%
+  dplyr::mutate(corpus = dplyr::case_when(corpus == "GB-Blog" ~ "Great Britain",
+                                          corpus == "GB-General" ~ "Great Britain",
+                                          corpus == "US-Blog" ~ "United States",
+                                          corpus == "US-General" ~ "United States",
+                                          T ~ corpus)) %>%
+  dplyr::group_by(corpus) %>%
+  dplyr::summarise(tokens = length(names(table(keyword))),
+                   types = length(names(table(lemma)))) %>%
+  dplyr::mutate(CTTR = round(types / (sqrt(2 * tokens)), 3)) %>%
+  dplyr::mutate(country = dplyr::case_when(corpus == "Australia" ~ "au",
+                                           corpus == "Bangladesh" ~ "bd",
+                                           corpus == "Canada" ~ "ca",
+                                           corpus == "Great Britain" ~ "gb",
+                                           corpus == "Ghana" ~ "gh",
+                                           corpus == "Hong Kong" ~ "hk",
+                                          corpus == "Ireland" ~ "ie",
+                                          corpus == "India" ~ "in",
+                                          corpus == "Jamaica" ~ "jm",
+                                          corpus == "Kenya" ~ "ke",
+                                          corpus == "Malaysia" ~ "my",
+                                          corpus == "New Zealand" ~ "nz",
+                                          corpus == "Nigeria" ~ "ng",
+                                          corpus == "Pakistan" ~ "pk",
+                                          corpus == "Philippines" ~ "ph",
+                                          corpus == "Singapore" ~ "sg",
+                                          corpus == "South Africa" ~ "za",
+                                          corpus == "Sri Lanka" ~ "lk",
+                                          corpus == "Tanzania" ~ "tz",
+                                          corpus == "United States" ~ "us",
+                                          T ~ NA))  -> Fig4dat
+Fig4dat
+```
+
+
+```{r}
+ggplot(Fig4dat, aes(x = CTTR, y = reorder(corpus, -CTTR), country = country, label = CTTR)) +
+  geom_text(color = "black", hjust = -0.5, size = 3, position = position_dodge(width = .9))+
+  ggflags::geom_flag(size = 4) +
+  theme_bw() +
+  coord_cartesian(xlim = c(2, 4)) +
+  theme(legend.position = c(0.7, 0.3),
+        legend.title = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.title.y=element_blank()) +
+  labs(x = "Adjusted Corrected Type-Token Ratio (aCTTR)")
+ggsave(here::here("images", "Fig4.png"), width = 16, height = 12, units = "cm", dpi = 600)
+```
+
+
+
+
+# Figure 5 (lemmas)
+
+```{r}
+kwics  %>%
+  dplyr::mutate(corpus = dplyr::case_when(corpus == "GB-Blog" ~ "Great Britain",
+                                          corpus == "GB-General" ~ "Great Britain",
+                                          corpus == "US-Blog" ~ "United States",
+                                          corpus == "US-General" ~ "United States",
+                                          T ~ corpus)) %>%
+  group_by(corpus, lemma) %>%
+  dplyr::summarise(freq = n()) -> Fig5dat_1
+# inspect
+Fig5dat_1
+```
+
+
+```{r}
+res %>%
+  dplyr::group_by(corpus) %>%
+  dplyr::summarise(tokens = sum(tokens)) -> Fig5dat_2
+# inspect
+Fig5dat_2
+```
+
+
+```{r}
+dplyr::left_join(Fig5dat_2, Fig5dat_1) %>%
+  dplyr::rowwise() %>%
+  dplyr::mutate(rfreq = freq/tokens*1000000)  %>%
+  dplyr::mutate(lemma = ifelse(rfreq < 10, "other", lemma)) %>%
+  dplyr::group_by(corpus, lemma) %>%
+  dplyr::summarise(tokens = unique(tokens),
+                   freq = sum(freq))  %>%
+  dplyr::mutate(rfreq = freq/tokens*1000000) %>%
+  dplyr::group_by(corpus) %>%
+  dplyr::mutate(maxfreq = max(rfreq))  %>%
+  dplyr::mutate(country = dplyr::case_when(corpus == "Australia" ~ "au",
+                                           corpus == "Bangladesh" ~ "bd",
+                                           corpus == "Canada" ~ "ca",
+                                           corpus == "Great Britain" ~ "gb",
+                                           corpus == "Ghana" ~ "gh",
+                                           corpus == "Hong Kong" ~ "hk",
+                                          corpus == "Ireland" ~ "ie",
+                                          corpus == "India" ~ "in",
+                                          corpus == "Jamaica" ~ "jm",
+                                          corpus == "Kenya" ~ "ke",
+                                          corpus == "Malaysia" ~ "my",
+                                          corpus == "New Zealand" ~ "nz",
+                                          corpus == "Nigeria" ~ "ng",
+                                          corpus == "Pakistan" ~ "pk",
+                                          corpus == "Philippines" ~ "ph",
+                                          corpus == "Singapore" ~ "sg",
+                                          corpus == "South Africa" ~ "za",
+                                          corpus == "Sri Lanka" ~ "lk",
+                                          corpus == "Tanzania" ~ "tz",
+                                          corpus == "United States" ~ "us",
+                                          T ~ NA))  -> Fig5dat
+# inspect
+Fig5dat
+```
+
+```{r}
+Fig5dat %>%
+  ggplot(aes(x = reorder(corpus, maxfreq), y = rfreq, group = lemma, label = lemma, country = country, alpha = lemma)) +
+  geom_text(size = 3, position=position_jitter(width=.3,height=.3)) +
+  ggflags::geom_flag(aes(y = -10), size = 4) +
+  coord_flip() +
+  labs(x = "", 
+       y = "Relative frequency (per million words)",
+       alpha = "Vulgar lemma") +
+  #scale_alpha_manual(values = rep(.5, length(names(table(Fig5dat$lemma))))) +
+  scale_alpha_manual(values = c(0.5, 0.5, 0.5, 0.5, 0.5, 0.9,  0.5, 0.5, 0.5,  0.9, 0.5, 0.5)) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "top")
+ggsave(here::here("images", "Fig5.png"), width = 15, height = 20, units = "cm", dpi = 600)
+  
+```
+
+# Figure 6 (heatmap)
+
+```{r}
+kwics %>%
+  dplyr::mutate(corpus = dplyr::case_when(corpus == "GB-Blog" ~ "Great Britain",
+                                          corpus == "GB-General" ~ "Great Britain",
+                                          corpus == "US-Blog" ~ "United States",
+                                          corpus == "US-General" ~ "United States",
+                                          T ~ corpus)) %>%
+  dplyr::group_by(corpus, lemma) %>%
+  dplyr::summarise(freq = n(), .groups = "drop") %>%
+  mutate(z_score = scale(freq)) -> cfadat
+# inspect
+head(cfadat)
+```
+
+## CFA
+
+```{r}
+library(cfa)
+# define configurations
+configs <- cfadat %>%
+  dplyr::select(corpus, lemma)
+# define counts
+counts <- cfadat$freq
+# perform cfa
+cfa(configs, counts) -> cfa_res
+# inspect
+cfa_res
+```
+
+```{r}
+options(scipen=999)
+cfa_res[[1]] %>%
+  as.data.frame()  %>%
+  dplyr::filter(sig.chisq == "TRUE")  -> cfares
+```
+
+
+```{r}
+cfa_res[[1]] %>%
+  as.data.frame() %>%
+  dplyr::mutate(lemma = stringr::str_remove_all(label, ".* "),
+                corpus = stringr::str_replace_all(label, "^(\\w+ {0,1}\\w*) \\w+.*$", "\\1")) %>%
+  dplyr::group_by(corpus) %>%
+  dplyr::mutate(corpus_total = sum(n)) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(lemma) %>%
+  dplyr::mutate(lemma_total = sum(n)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(total = sum(n)) %>%
+  dplyr::rowwise() %>%
+  dplyr::mutate(phi = (sqrt(chisq / total)))  %>%
+  dplyr::mutate(phi = ifelse(n > expected, phi, -phi)) %>%
+  dplyr::mutate(phi = ifelse(is.na(phi), 0, phi))  %>%
+  mutate(phi = ifelse(phi < -0.02 | phi > 0.02, phi, 0),
+         phi = ifelse(is.na(phi), 0, phi)) %>%
+  dplyr::mutate(corpus = factor(corpus, levels = c("United States", "Great Britain", "Australia", "Canada", "Ireland", "New Zealand", "India", "Nigeria", "Philippines", "Pakistan", "Singapore", "South Africa", "Ghana", "Kenya", "Malaysia", "Hong Kong", "Jamaica", "Tanzania", "Sri Lanka", "Bangladesh"))) -> Fig6dat
+# inspect
+Fig6dat
+```
+
+
+
+```{r}
+# Create heatmap
+ggplot(Fig6dat, aes(x = corpus, y = lemma, fill = phi)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  labs(
+    title = "",
+    x = "Region",
+    y = "Vulgar Lemma",
+    fill = "Phi-value"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+    panel.background = element_rect(fill = "white", color = NA), # Set panel background to white
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid = element_blank())   # Set plot background to white
+ggsave(here::here("images", "Fig6.png"), width = 15, height = 22, units = "cm", dpi = 600,bg = "white")
+```
+
+## Table 2
+
+```{r}
+Table2 <- Fig6dat %>%
+  dplyr::filter(sig.chisq == T) %>%
+  dplyr::select(-label, -z, -p.z, -sig.z, -corpus_total, -lemma_total, -total, -sig.chisq) %>%
+  dplyr::mutate(type = ifelse(phi < 0, "Avoided", "Preferred"),
+                p.chisq = ifelse(p.chisq < 0.001, "< .001***", p.chisq),
+                Q = round(Q, 5),
+                expected = round(expected, 1),
+                chisq = round(chisq, 1),
+                phi = round(phi, 3)) %>%
+  dplyr::arrange(-phi) %>%
+  dplyr::relocate(any_of(c("corpus", "lemma", "type", "n", "expected", "chisq", "Q"))) %>%
+  dplyr::rename(Region = corpus,
+                `Vulgar lemma` = lemma,
+                `Observed frequency` = n,
+                `Expected frequency` = expected,
+                `Q-value`	= Q,
+                `X2-value` = chisq,
+                `Bonferroni-corrected p-value` = p.chisq,
+                Type = type,
+                `Phi-value` = phi)
+# save 
+writexl::write_xlsx(Table2, here::here("tables", "Table2.xlsx"))
+# inspect
+Table2
+```
+
+# Outro
+
+```{r}
+sessionInfo()
+```
+
